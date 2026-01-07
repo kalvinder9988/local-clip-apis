@@ -54,3 +54,8 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Uploads
+# Ignore all files in uploads folder but keep the folder structure
+uploads/**/*
+!uploads/.gitkeep
