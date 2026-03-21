@@ -15,6 +15,7 @@ import { AdminUser } from '../../admin-users/entities/admin-user.entity';
 import { MerchantConvenience } from './merchant-convenience.entity';
 import { Asset } from './asset.entity';
 import { Review } from './review.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 
 @Entity('merchant_businesses')
 export class MerchantBusiness {
@@ -90,6 +91,12 @@ export class MerchantBusiness {
     @Column({ type: 'boolean', default: false })
     deleted: boolean;
 
+    @Column({ type: 'decimal', precision: 3, scale: 1, default: 4 })
+    average_rating: number;
+
+    @Column({ type: 'int', default: 0 })
+    total_likes: number;
+
     @CreateDateColumn({ type: 'timestamp' })
     created_at: Date;
 
@@ -105,4 +112,7 @@ export class MerchantBusiness {
 
     @OneToMany(() => Review, (review) => review.merchant_business)
     reviews: Review[];
+
+    @OneToMany(() => Coupon, (coupon) => coupon.merchant_business)
+    coupons: Coupon[];
 }

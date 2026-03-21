@@ -30,6 +30,9 @@ export class Banner {
         }
     }
 
+    @Column({ type: 'varchar', length: 500, nullable: true })
+    caption: string | null;
+
     @Column({ type: 'int', default: 0 })
     display_order: number;
 

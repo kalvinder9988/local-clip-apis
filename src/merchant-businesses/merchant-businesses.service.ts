@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Not } from 'typeorm';
+import { Repository, DataSource, Not, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { CreateMerchantBusinessDto } from './dto/create-merchant-business.dto';
 import { UpdateMerchantBusinessDto } from './dto/update-merchant-business.dto';
@@ -136,8 +136,8 @@ export class MerchantBusinessesService {
   async addConveniences(merchantBusinessId: number, convenienceIds: number[], queryRunner?: any) {
     const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
 
-    // Validate merchant business exists
-    const merchantBusiness = await this.merchantBusinessRepository.findOne({
+    // Validate merchant business exists (use transactional manager so newly created businesses are visible)
+    const merchantBusiness = await manager.findOne(MerchantBusiness, {
       where: { id: merchantBusinessId },
     });
 
@@ -145,8 +145,8 @@ export class MerchantBusinessesService {
       throw new NotFoundException(`Merchant business with ID ${merchantBusinessId} not found`);
     }
 
-    // Validate all convenience IDs exist
-    const conveniences = await this.convenienceRepository.findByIds(convenienceIds);
+    // Validate all convenience IDs exist (use manager to stay within transaction context)
+    const conveniences = await manager.find(Convenience, { where: { id: In(convenienceIds) } });
 
     if (conveniences.length !== convenienceIds.length) {
       throw new BadRequestException('One or more convenience IDs are invalid');
@@ -207,6 +207,17 @@ export class MerchantBusinessesService {
   }
 
   /**
+   * Get merchant businesses owned by a specific admin user (merchant role)
+   */
+  async findByMerchantUserId(merchantUserId: number) {
+    return this.merchantBusinessRepository.find({
+      where: { merchant: { id: merchantUserId }, deleted: false },
+      relations: ['zipcode', 'category', 'merchant', 'merchant_convenience', 'merchant_convenience.convenience', 'assets'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  /**
    * Get merchant business by ID
    */
   async findOne(id: number) {
@@ -228,14 +239,23 @@ export class MerchantBusinessesService {
   async update(id: number, updateMerchantBusinessDto: UpdateMerchantBusinessDto) {
     const merchantBusiness = await this.findOne(id);
 
+    // Update owner name if provided
+    if (updateMerchantBusinessDto.owner_name && merchantBusiness.merchant) {
+      merchantBusiness.merchant.name = updateMerchantBusinessDto.owner_name;
+      await this.adminUserRepository.save(merchantBusiness.merchant);
+    }
+
     // Generate new slug if business name changed
     if (updateMerchantBusinessDto.business_name && updateMerchantBusinessDto.business_name !== merchantBusiness.business_name) {
       const slug = await this.generateBusinessSlug(updateMerchantBusinessDto.business_name, id);
       merchantBusiness.slug = slug;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { owner_name, ...businessFields } = updateMerchantBusinessDto;
+
     // Update fields
-    Object.assign(merchantBusiness, updateMerchantBusinessDto);
+    Object.assign(merchantBusiness, businessFields);
 
     // If category_id or zipcode_id changed, update relations
     if (updateMerchantBusinessDto.category_id) {

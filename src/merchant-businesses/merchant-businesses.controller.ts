@@ -11,6 +11,7 @@ import {
   UploadedFile,
   ParseIntPipe,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FilesInterceptor, FileInterceptor, AnyFilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -244,7 +245,10 @@ export class MerchantBusinessesController {
   @Get()
   @ApiOperation({ summary: 'Get all merchant businesses' })
   @ApiResponse({ status: 200, description: 'List of merchant businesses' })
-  findAll() {
+  findAll(@Query('merchant_id') merchantId?: string) {
+    if (merchantId) {
+      return this.merchantBusinessesService.findByMerchantUserId(+merchantId);
+    }
     return this.merchantBusinessesService.findAll();
   }
 

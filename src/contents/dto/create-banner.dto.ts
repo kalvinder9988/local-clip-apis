@@ -6,6 +6,10 @@ export class CreateBannerDto {
     banner_image?: string;
 
     @IsOptional()
+    @IsString()
+    caption?: string;
+
+    @IsOptional()
     @IsInt()
     @Min(0)
     display_order?: number;

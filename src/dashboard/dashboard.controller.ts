@@ -1,4 +1,5 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Request } from 'express';
 import { DashboardService } from './dashboard.service';
 
 @Controller('dashboard')
@@ -59,5 +60,15 @@ export class DashboardController {
     @Get('growth')
     getGrowthStats() {
         return this.dashboardService.getGrowthStats();
+    }
+
+    /**
+     * GET /dashboard/merchant-stats
+     * Get dashboard statistics for the logged-in merchant
+     */
+    @Get('merchant-stats')
+    getMerchantDashboardStats(@Req() req: Request) {
+        const user = req['user'] as { userId: number; email: string; role: string };
+        return this.dashboardService.getMerchantDashboardStats(user.userId);
     }
 }

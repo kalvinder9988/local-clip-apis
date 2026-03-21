@@ -80,6 +80,7 @@ export class BannersController {
 
         const bannerData: CreateBannerDto = {
             banner_image: `banners/${file.filename}`, // Removed 'uploads/' prefix since static server adds it
+            caption: body.caption || undefined,
             display_order: body.display_order ? parseInt(body.display_order, 10) : 0,
             status: body.status === 'true' || body.status === true || body.status === undefined ? true : false,
         };

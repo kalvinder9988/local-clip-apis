@@ -15,6 +15,8 @@ import { AdminUsersModule } from './admin-users/admin-users.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { ConveniencesModule } from './conveniences/conveniences.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { WebApisModule } from './web-apis/web-apis.module';
+import { ContactInquiriesModule } from './contact-inquiries/contact-inquiries.module';
 
 @Module({
   imports: [
@@ -50,6 +52,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
     ConveniencesModule,
 
     DashboardModule,
+
+    WebApisModule,
+
+    ContactInquiriesModule,
   ],
   controllers: [AppController],
   providers: [

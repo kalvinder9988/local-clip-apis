@@ -72,3 +72,13 @@ export class GrowthStatsDto {
     merchants: number;
     coupons: number;
 }
+
+export class MerchantDashboardStatsDto {
+    businessName: string;
+    businessStatus: boolean;
+    totalCoupons: number;
+    activeCoupons: number;
+    totalLikes: number;
+    totalDislikes: number;
+    totalShares: number;
+}

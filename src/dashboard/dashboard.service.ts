@@ -13,6 +13,7 @@ import {
     CouponStatsDto,
     RecentActivityDto,
     GrowthStatsDto,
+    MerchantDashboardStatsDto,
 } from './dto/dashboard-stats.dto';
 
 @Injectable()
@@ -283,6 +284,48 @@ export class DashboardService {
         }
 
         return stats;
+    }
+
+    /**
+     * Get dashboard statistics for a specific merchant (by their AdminUser ID)
+     */
+    async getMerchantDashboardStats(merchantUserId: number): Promise<MerchantDashboardStatsDto> {
+        const business = await this.merchantRepository.findOne({
+            where: { merchant: { id: merchantUserId }, deleted: false } as any,
+            order: { created_at: 'DESC' },
+        });
+
+        if (!business) {
+            return {
+                businessName: '',
+                businessStatus: false,
+                totalCoupons: 0,
+                activeCoupons: 0,
+                totalLikes: 0,
+                totalDislikes: 0,
+                totalShares: 0,
+            };
+        }
+
+        const couponAgg = await this.couponRepository
+            .createQueryBuilder('coupon')
+            .select('COUNT(coupon.id)', 'totalCoupons')
+            .addSelect('SUM(CASE WHEN coupon.status = 1 THEN 1 ELSE 0 END)', 'activeCoupons')
+            .addSelect('SUM(coupon.total_likes)', 'totalLikes')
+            .addSelect('SUM(coupon.total_dislikes)', 'totalDislikes')
+            .addSelect('SUM(coupon.total_shared)', 'totalShares')
+            .where('coupon.merchant_business_id = :businessId', { businessId: business.id })
+            .getRawOne();
+
+        return {
+            businessName: business.business_name,
+            businessStatus: business.status,
+            totalCoupons: parseInt(couponAgg?.totalCoupons ?? '0', 10),
+            activeCoupons: parseInt(couponAgg?.activeCoupons ?? '0', 10),
+            totalLikes: parseInt(couponAgg?.totalLikes ?? '0', 10),
+            totalDislikes: parseInt(couponAgg?.totalDislikes ?? '0', 10),
+            totalShares: parseInt(couponAgg?.totalShares ?? '0', 10),
+        };
     }
 
     /**

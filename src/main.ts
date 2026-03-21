@@ -40,7 +40,7 @@ async function bootstrap() {
 
   // Enable CORS with credentials for cookie-based authentication
   app.enableCors({
-    origin: process.env.FRONTEND_URL || ['http://localhost:8080', 'http://163.227.92.106:3000', 'http://163.227.92.106:3002', 'http://localhost:8081', 'http://localhost:5173', 'http://localhost:8082'],
+    origin: process.env.FRONTEND_URL || ['http://localhost:8080', 'http://163.227.92.106:3000', 'http://163.227.92.106:3002', 'http://localhost:8081', 'http://localhost:5173', 'http://localhost:8082', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
     credentials: true,
   });
 
