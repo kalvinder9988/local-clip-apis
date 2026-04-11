@@ -10,6 +10,7 @@ import { Review } from './entities/review.entity';
 import { AdminUser } from '../admin-users/entities/admin-user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { Zipcode } from '../zipcodes/entities/zipcode.entity';
+import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { Zipcode } from '../zipcodes/entities/zipcode.entity';
       AdminUser,
       Category,
       Zipcode,
+      ZipcodeGroup,
     ]),
   ],
   controllers: [MerchantBusinessesController],

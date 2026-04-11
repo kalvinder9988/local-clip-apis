@@ -4,7 +4,10 @@ import {
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    ManyToOne,
+    JoinColumn,
 } from 'typeorm';
+import { ZipcodeGroup } from '../../zipcode-groups/entities/zipcode-group.entity';
 
 @Entity('zipcodes')
 export class Zipcode {
@@ -22,6 +25,13 @@ export class Zipcode {
 
     @Column({ type: 'boolean', default: false })
     deleted: boolean;
+
+    @Column({ type: 'int', nullable: true })
+    zipcode_group_id: number | null;
+
+    @ManyToOne(() => ZipcodeGroup, (group) => group.zipcodes, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'zipcode_group_id' })
+    group: ZipcodeGroup;
 
     @CreateDateColumn({ type: 'timestamp' })
     created_at: Date;

@@ -11,6 +11,7 @@ import { Asset } from './entities/asset.entity';
 import { AdminUser, AdminRole } from '../admin-users/entities/admin-user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { Zipcode } from '../zipcodes/entities/zipcode.entity';
+import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
 import { generateUniqueSlug } from '../common/utils/slug.utils';
 
 @Injectable()
@@ -30,6 +31,8 @@ export class MerchantBusinessesService {
     private readonly categoryRepository: Repository<Category>,
     @InjectRepository(Zipcode)
     private readonly zipcodeRepository: Repository<Zipcode>,
+    @InjectRepository(ZipcodeGroup)
+    private readonly zipcodeGroupRepository: Repository<ZipcodeGroup>,
     private readonly dataSource: DataSource,
   ) { }
 
@@ -62,12 +65,25 @@ export class MerchantBusinessesService {
       }
 
       // Validate zipcode exists
-      const zipcode = await this.zipcodeRepository.findOne({
-        where: { id: createMerchantBusinessDto.zipcode_id },
-      });
+      let zipcode: Zipcode | null = null;
+      if (createMerchantBusinessDto.zipcode_id) {
+        zipcode = await this.zipcodeRepository.findOne({
+          where: { id: createMerchantBusinessDto.zipcode_id },
+        });
+        if (!zipcode) {
+          throw new NotFoundException(`Zipcode with ID ${createMerchantBusinessDto.zipcode_id} not found`);
+        }
+      }
 
-      if (!zipcode) {
-        throw new NotFoundException(`Zipcode with ID ${createMerchantBusinessDto.zipcode_id} not found`);
+      // Validate zipcode group if provided
+      let zipcodeGroup: ZipcodeGroup | null = null;
+      if (createMerchantBusinessDto.zipcode_group_id) {
+        zipcodeGroup = await this.zipcodeGroupRepository.findOne({
+          where: { id: createMerchantBusinessDto.zipcode_group_id, deleted: false },
+        });
+        if (!zipcodeGroup) {
+          throw new NotFoundException(`Zipcode group with ID ${createMerchantBusinessDto.zipcode_group_id} not found`);
+        }
       }
 
       // Step 2: Create AdminUser as MERCHANT
@@ -97,7 +113,8 @@ export class MerchantBusinessesService {
         website: createMerchantBusinessDto.website,
         banner_image: createMerchantBusinessDto.banner_image,
         description: createMerchantBusinessDto.description,
-        zipcode: zipcode,
+        zipcode: zipcode ?? undefined,
+        zipcode_group: zipcodeGroup ?? undefined,
         category: category,
         merchant: savedMerchantUser,
         location: createMerchantBusinessDto.location,
@@ -201,7 +218,7 @@ export class MerchantBusinessesService {
   async findAll() {
     return this.merchantBusinessRepository.find({
       where: { deleted: false },
-      relations: ['zipcode', 'category', 'merchant', 'merchant_convenience', 'assets'],
+      relations: ['zipcode', 'zipcode_group', 'category', 'merchant', 'merchant_convenience', 'assets'],
       order: { created_at: 'DESC' },
     });
   }
@@ -212,7 +229,7 @@ export class MerchantBusinessesService {
   async findByMerchantUserId(merchantUserId: number) {
     return this.merchantBusinessRepository.find({
       where: { merchant: { id: merchantUserId }, deleted: false },
-      relations: ['zipcode', 'category', 'merchant', 'merchant_convenience', 'merchant_convenience.convenience', 'assets'],
+      relations: ['zipcode', 'zipcode_group', 'category', 'merchant', 'merchant_convenience', 'merchant_convenience.convenience', 'assets'],
       order: { created_at: 'DESC' },
     });
   }
@@ -223,7 +240,7 @@ export class MerchantBusinessesService {
   async findOne(id: number) {
     const merchantBusiness = await this.merchantBusinessRepository.findOne({
       where: { id, deleted: false },
-      relations: ['zipcode', 'category', 'merchant', 'merchant_convenience', 'merchant_convenience.convenience', 'assets', 'reviews'],
+      relations: ['zipcode', 'zipcode_group', 'category', 'merchant', 'merchant_convenience', 'merchant_convenience.convenience', 'assets', 'reviews'],
     });
 
     if (!merchantBusiness) {
@@ -276,6 +293,20 @@ export class MerchantBusinessesService {
         throw new NotFoundException(`Zipcode with ID ${updateMerchantBusinessDto.zipcode_id} not found`);
       }
       merchantBusiness.zipcode = zipcode;
+    }
+
+    if (updateMerchantBusinessDto.zipcode_group_id !== undefined) {
+      if (updateMerchantBusinessDto.zipcode_group_id === null) {
+        merchantBusiness.zipcode_group = null;
+      } else {
+        const zipcodeGroup = await this.zipcodeGroupRepository.findOne({
+          where: { id: updateMerchantBusinessDto.zipcode_group_id, deleted: false },
+        });
+        if (!zipcodeGroup) {
+          throw new NotFoundException(`Zipcode group with ID ${updateMerchantBusinessDto.zipcode_group_id} not found`);
+        }
+        merchantBusiness.zipcode_group = zipcodeGroup;
+      }
     }
 
     await this.merchantBusinessRepository.save(merchantBusiness);

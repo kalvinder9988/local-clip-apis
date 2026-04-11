@@ -55,8 +55,12 @@ export class CreateMerchantBusinessDto {
     description?: string;
 
     @IsNumber()
-    @IsNotEmpty()
-    zipcode_id: number;
+    @IsOptional()
+    zipcode_id?: number;
+
+    @IsNumber()
+    @IsOptional()
+    zipcode_group_id?: number;
 
     @IsNumber()
     @IsNotEmpty()

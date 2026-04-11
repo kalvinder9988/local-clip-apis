@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
 import { Zipcode } from '../../zipcodes/entities/zipcode.entity';
+import { ZipcodeGroup } from '../../zipcode-groups/entities/zipcode-group.entity';
 import { AdminUser } from '../../admin-users/entities/admin-user.entity';
 import { MerchantConvenience } from './merchant-convenience.entity';
 import { Asset } from './asset.entity';
@@ -58,9 +59,13 @@ export class MerchantBusiness {
     @Column({ type: 'text', nullable: true })
     description: string;
 
-    @ManyToOne(() => Zipcode)
+    @ManyToOne(() => Zipcode, { nullable: true })
     @JoinColumn({ name: 'zipcode_id' })
     zipcode: Zipcode;
+
+    @ManyToOne(() => ZipcodeGroup, { nullable: true })
+    @JoinColumn({ name: 'zipcode_group_id' })
+    zipcode_group: ZipcodeGroup | null;
 
     @ManyToOne(() => Category)
     @JoinColumn({ name: 'category_id' })

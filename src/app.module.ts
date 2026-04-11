@@ -8,6 +8,7 @@ import { ContentsModule } from './contents/contents.module';
 import { PlansModule } from './plans/plans.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { ZipcodesModule } from './zipcodes/zipcodes.module';
+import { ZipcodeGroupsModule } from './zipcode-groups/zipcode-groups.module';
 import { CategoriesModule } from './categories/categories.module';
 import { MerchantBusinessesModule } from './merchant-businesses/merchant-businesses.module';
 import { UsersModule } from './users/users.module';
@@ -40,6 +41,8 @@ import { ContactInquiriesModule } from './contact-inquiries/contact-inquiries.mo
     CouponsModule,
 
     ZipcodesModule,
+
+    ZipcodeGroupsModule,
 
     CategoriesModule,
 

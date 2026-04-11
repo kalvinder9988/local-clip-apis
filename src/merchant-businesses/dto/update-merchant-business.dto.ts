@@ -15,5 +15,9 @@ export class UpdateMerchantBusinessDto extends PartialType(
 
     @IsNumber()
     @IsOptional()
+    zipcode_group_id?: number;
+
+    @IsNumber()
+    @IsOptional()
     category_id?: number;
 }

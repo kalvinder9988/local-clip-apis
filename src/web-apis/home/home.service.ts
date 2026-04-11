@@ -102,6 +102,8 @@ export class HomeService {
             .createQueryBuilder('mb')
             .leftJoinAndSelect('mb.category', 'category')
             .leftJoinAndSelect('mb.zipcode', 'zipcode')
+            .leftJoinAndSelect('mb.zipcode_group', 'zipcode_group')
+            .leftJoinAndSelect('zipcode_group.zipcodes', 'group_zipcodes')
             .where('mb.status = :status', { status: true })
             .andWhere('mb.deleted = :deleted', { deleted: false });
 
@@ -113,7 +115,10 @@ export class HomeService {
         }
 
         if (zipcode) {
-            queryBuilder.andWhere('zipcode.zipcode = :zipcode', { zipcode });
+            queryBuilder.andWhere(
+                '(zipcode.zipcode = :zipcode OR group_zipcodes.zipcode = :zipcode)',
+                { zipcode },
+            );
         }
 
         return queryBuilder.orderBy('mb.created_at', 'DESC').getMany();
@@ -131,6 +136,8 @@ export class HomeService {
             .createQueryBuilder('mb')
             .leftJoinAndSelect('mb.category', 'category')
             .leftJoinAndSelect('mb.zipcode', 'zipcode')
+            .leftJoinAndSelect('mb.zipcode_group', 'zipcode_group')
+            .leftJoinAndSelect('zipcode_group.zipcodes', 'group_zipcodes')
             .where('mb.status = :status', { status: true })
             .andWhere('mb.deleted = :deleted', { deleted: false });
 
@@ -150,7 +157,10 @@ export class HomeService {
         }
 
         if (zipcode) {
-            queryBuilder.andWhere('zipcode.zipcode = :zipcode', { zipcode });
+            queryBuilder.andWhere(
+                '(zipcode.zipcode = :zipcode OR group_zipcodes.zipcode = :zipcode)',
+                { zipcode },
+            );
         }
 
         return queryBuilder.orderBy('mb.created_at', 'DESC').getMany();
