@@ -39,8 +39,30 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Enable CORS with credentials for cookie-based authentication
+  const extraOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
+    : [];
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || ['http://163.227.92.134:3002', 'http://163.227.92.134:3003', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003'],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, same-origin SSR)
+      if (!origin) return callback(null, true);
+
+      const isLocalhost = /^https?:\/\/localhost(:\d+)?$/.test(origin);
+      // Private network ranges: 10.x, 172.16-31.x, 192.168.x
+      const isPrivateNetwork = /^https?:\/\/(10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin);
+      const isExtraOrigin = extraOrigins.includes(origin);
+      const isProductionOrigin = [
+        'http://163.227.92.134:3002',
+        'http://163.227.92.134:3003',
+      ].includes(origin);
+
+      if (isLocalhost || isPrivateNetwork || isExtraOrigin || isProductionOrigin) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin '${origin}' not allowed`));
+      }
+    },
     credentials: true,
   });
 

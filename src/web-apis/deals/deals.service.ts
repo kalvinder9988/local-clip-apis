@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
 import { MerchantBusiness } from '../../merchant-businesses/entities/merchant-business.entity';
 import { UserLike } from '../../merchant-businesses/entities/user-like.entity';
 import { UserCouponHistory } from '../../merchant-businesses/entities/user-coupon-history.entity';
 import { SharedCoupon, SharedCouponRecipient } from '../../merchant-businesses/entities/shared-coupon.entity';
 import { Coupon } from '../../coupons/entities/coupon.entity';
 import { Review } from '../../merchant-businesses/entities/review.entity';
+import { MerchantQuestion, QuestionStatus } from '../../merchant-businesses/entities/merchant-question.entity';
 
 @Injectable()
 export class DealsService {
@@ -23,6 +24,8 @@ export class DealsService {
         private readonly sharedCouponRepository: Repository<SharedCoupon>,
         @InjectRepository(Review)
         private readonly reviewRepository: Repository<Review>,
+        @InjectRepository(MerchantQuestion)
+        private readonly questionRepository: Repository<MerchantQuestion>,
     ) { }
 
     /**
@@ -165,6 +168,45 @@ export class DealsService {
         });
 
         return this.reviewRepository.save(record);
+    }
+
+    /**
+     * Submit a question for a deal (logged-in users only).
+     */
+    async submitQuestion(
+        userId: number,
+        merchantBusinessId: number,
+        questionText: string,
+    ): Promise<MerchantQuestion> {
+        const business = await this.merchantBusinessRepository.findOne({ where: { id: merchantBusinessId } });
+        if (!business) {
+            throw new NotFoundException(`Deal with ID ${merchantBusinessId} not found`);
+        }
+
+        const record = this.questionRepository.create({
+            merchant_business_id: merchantBusinessId,
+            user_id: userId,
+            question: questionText,
+            answer: null,
+            status: QuestionStatus.PENDING,
+        });
+
+        return this.questionRepository.save(record);
+    }
+
+    /**
+     * Get only answered questions for a deal (public).
+     */
+    async getAnsweredQuestions(merchantBusinessId: number): Promise<MerchantQuestion[]> {
+        return this.questionRepository.find({
+            where: {
+                merchant_business_id: merchantBusinessId,
+                status: QuestionStatus.ANSWERED,
+                answer: Not(IsNull()),
+            },
+            relations: ['user'],
+            order: { created_at: 'DESC' },
+        });
     }
 }
 

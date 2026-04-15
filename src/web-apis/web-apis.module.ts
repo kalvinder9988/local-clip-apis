@@ -18,10 +18,11 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { Review } from '../merchant-businesses/entities/review.entity';
 import { StaticPage } from '../contents/entities/static-page.entity';
 import { ContactInquiry } from './home/entities/contact-inquiry.entity';
+import { MerchantQuestion } from '../merchant-businesses/entities/merchant-question.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Banner, Category, MerchantBusiness, UserLike, UserCouponHistory, SharedCoupon, Coupon, Review, StaticPage, ContactInquiry]),
+        TypeOrmModule.forFeature([Banner, Category, MerchantBusiness, UserLike, UserCouponHistory, SharedCoupon, Coupon, Review, StaticPage, ContactInquiry, MerchantQuestion]),
         UsersModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],

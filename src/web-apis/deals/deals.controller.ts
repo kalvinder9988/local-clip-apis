@@ -5,6 +5,12 @@ import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SharedCouponRecipient } from '../../merchant-businesses/entities/shared-coupon.entity';
 
+class SubmitQuestionDto {
+    @IsNotEmpty()
+    @IsString()
+    question: string;
+}
+
 class ShareCouponDto {
     @IsNotEmpty()
     coupon_id: number;
@@ -100,6 +106,25 @@ export class DealsController {
             Number(body.rating),
             body.review,
         );
+    }
+
+    /**
+     * POST /web/deals/:id/question — requires user JWT
+     */
+    @UseGuards(JwtAuthGuard)
+    @Post(':id/question')
+    submitQuestion(@Param('id') id: string, @Body() body: SubmitQuestionDto, @Req() req: any) {
+        const userId: number = req.user.userId;
+        return this.dealsService.submitQuestion(userId, parseInt(id, 10), body.question);
+    }
+
+    /**
+     * GET /web/deals/:id/questions — public, returns only answered questions
+     */
+    @Public()
+    @Get(':id/questions')
+    getAnsweredQuestions(@Param('id') id: string) {
+        return this.dealsService.getAnsweredQuestions(parseInt(id, 10));
     }
 }
 
