@@ -82,3 +82,19 @@ export class MerchantDashboardStatsDto {
     totalDislikes: number;
     totalShares: number;
 }
+
+export class MerchantBusinessLikeDto {
+    id: number;
+    user_id: number;
+    user_name: string;
+    user_email: string;
+    user_phone: string;
+    liked_at: Date;
+}
+
+export class PaginatedResponseDto<T> {
+    data: T[];
+    total: number;
+    page: number;
+    limit: number;
+}

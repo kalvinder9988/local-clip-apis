@@ -44,6 +44,12 @@ export class CreateCouponDto {
     @Min(0)
     total_shared?: number;
 
+    @Transform(({ value }) => value !== undefined ? parseInt(value, 10) : undefined)
+    @IsInt()
+    @IsOptional()
+    @Min(0)
+    max_usage?: number;
+
     @IsDateString()
     valid_from: string;
 

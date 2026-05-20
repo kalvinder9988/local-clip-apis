@@ -71,4 +71,22 @@ export class DashboardController {
         const user = req['user'] as { userId: number; email: string; role: string };
         return this.dashboardService.getMerchantDashboardStats(user.userId);
     }
+
+    /**
+     * GET /dashboard/merchant-business-likes
+     * Get users who liked the logged-in merchant's business
+     */
+    @Get('merchant-business-likes')
+    getMerchantBusinessLikes(
+        @Req() req: Request,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        const user = req['user'] as { userId: number; email: string; role: string };
+        return this.dashboardService.getMerchantBusinessLikes(
+            user.userId,
+            page ? +page : 1,
+            limit ? +limit : 10,
+        );
+    }
 }

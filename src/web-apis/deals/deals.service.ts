@@ -5,6 +5,7 @@ import { MerchantBusiness } from '../../merchant-businesses/entities/merchant-bu
 import { UserLike } from '../../merchant-businesses/entities/user-like.entity';
 import { UserCouponHistory } from '../../merchant-businesses/entities/user-coupon-history.entity';
 import { SharedCoupon, SharedCouponRecipient } from '../../merchant-businesses/entities/shared-coupon.entity';
+import { UserCouponReaction, CouponReactionType } from '../../merchant-businesses/entities/user-coupon-reaction.entity';
 import { Coupon } from '../../coupons/entities/coupon.entity';
 import { Review } from '../../merchant-businesses/entities/review.entity';
 import { MerchantQuestion, QuestionStatus } from '../../merchant-businesses/entities/merchant-question.entity';
@@ -22,6 +23,8 @@ export class DealsService {
         private readonly couponRepository: Repository<Coupon>,
         @InjectRepository(SharedCoupon)
         private readonly sharedCouponRepository: Repository<SharedCoupon>,
+        @InjectRepository(UserCouponReaction)
+        private readonly userCouponReactionRepository: Repository<UserCouponReaction>,
         @InjectRepository(Review)
         private readonly reviewRepository: Repository<Review>,
         @InjectRepository(MerchantQuestion)
@@ -123,7 +126,7 @@ export class DealsService {
         recipientEmail: string,
         recipientName?: string,
         recipientPhone?: string,
-    ): Promise<SharedCoupon> {
+    ): Promise<SharedCoupon & { total_shared: number }> {
         const coupon = await this.couponRepository.findOne({
             where: { id: couponId },
             relations: ['merchant_business'],
@@ -132,18 +135,161 @@ export class DealsService {
             throw new NotFoundException(`Coupon with ID ${couponId} not found`);
         }
 
-        const record = this.sharedCouponRepository.create({
-            shared_by_user_id: userId,
-            coupon_id: coupon.id,
-            merchant_business_id: coupon.merchant_business_id,
-            coupon_code: coupon.coupon_code,
-            recipient_type: recipientType,
-            recipient_email: recipientEmail,
-            recipient_name: recipientName || null,
-            recipient_phone: recipientPhone || null,
+        const record = await this.sharedCouponRepository.save(
+            this.sharedCouponRepository.create({
+                shared_by_user_id: userId,
+                coupon_id: coupon.id,
+                merchant_business_id: coupon.merchant_business_id,
+                coupon_code: coupon.coupon_code,
+                recipient_type: recipientType,
+                recipient_email: recipientEmail,
+                recipient_name: recipientName || null,
+                recipient_phone: recipientPhone || null,
+            }),
+        );
+
+        await this.couponRepository.increment({ id: coupon.id }, 'total_shared', 1);
+
+        return {
+            ...record,
+            total_shared: Number(coupon.total_shared) + 1,
+        };
+    }
+
+    /**
+     * Like a coupon — one reaction per user; switches from dislike if needed.
+     */
+    async likeCoupon(
+        userId: number,
+        couponId: number,
+    ): Promise<{
+        total_likes: number;
+        total_dislikes: number;
+        user_reaction: CouponReactionType;
+        already_reacted: boolean;
+    }> {
+        const coupon = await this.couponRepository.findOne({ where: { id: couponId } });
+        if (!coupon) {
+            throw new NotFoundException(`Coupon with ID ${couponId} not found`);
+        }
+
+        const existing = await this.userCouponReactionRepository.findOne({
+            where: { user_id: userId, coupon_id: couponId },
         });
 
-        return this.sharedCouponRepository.save(record);
+        if (existing?.reaction_type === CouponReactionType.LIKE) {
+            return {
+                total_likes: Number(coupon.total_likes),
+                total_dislikes: Number(coupon.total_dislikes),
+                user_reaction: CouponReactionType.LIKE,
+                already_reacted: true,
+            };
+        }
+
+        if (existing?.reaction_type === CouponReactionType.DISLIKE) {
+            existing.reaction_type = CouponReactionType.LIKE;
+            await this.userCouponReactionRepository.save(existing);
+            if (Number(coupon.total_dislikes) > 0) {
+                await this.couponRepository.decrement({ id: couponId }, 'total_dislikes', 1);
+            }
+            await this.couponRepository.increment({ id: couponId }, 'total_likes', 1);
+        } else {
+            await this.userCouponReactionRepository.save(
+                this.userCouponReactionRepository.create({
+                    user_id: userId,
+                    coupon_id: couponId,
+                    reaction_type: CouponReactionType.LIKE,
+                }),
+            );
+            await this.couponRepository.increment({ id: couponId }, 'total_likes', 1);
+        }
+
+        const updated = await this.couponRepository.findOne({ where: { id: couponId } });
+
+        return {
+            total_likes: Number(updated?.total_likes ?? 0),
+            total_dislikes: Number(updated?.total_dislikes ?? 0),
+            user_reaction: CouponReactionType.LIKE,
+            already_reacted: false,
+        };
+    }
+
+    /**
+     * Dislike a coupon — one reaction per user; switches from like if needed.
+     */
+    async dislikeCoupon(
+        userId: number,
+        couponId: number,
+    ): Promise<{
+        total_likes: number;
+        total_dislikes: number;
+        user_reaction: CouponReactionType;
+        already_reacted: boolean;
+    }> {
+        const coupon = await this.couponRepository.findOne({ where: { id: couponId } });
+        if (!coupon) {
+            throw new NotFoundException(`Coupon with ID ${couponId} not found`);
+        }
+
+        const existing = await this.userCouponReactionRepository.findOne({
+            where: { user_id: userId, coupon_id: couponId },
+        });
+
+        if (existing?.reaction_type === CouponReactionType.DISLIKE) {
+            return {
+                total_likes: Number(coupon.total_likes),
+                total_dislikes: Number(coupon.total_dislikes),
+                user_reaction: CouponReactionType.DISLIKE,
+                already_reacted: true,
+            };
+        }
+
+        if (existing?.reaction_type === CouponReactionType.LIKE) {
+            existing.reaction_type = CouponReactionType.DISLIKE;
+            await this.userCouponReactionRepository.save(existing);
+            if (Number(coupon.total_likes) > 0) {
+                await this.couponRepository.decrement({ id: couponId }, 'total_likes', 1);
+            }
+            await this.couponRepository.increment({ id: couponId }, 'total_dislikes', 1);
+        } else {
+            await this.userCouponReactionRepository.save(
+                this.userCouponReactionRepository.create({
+                    user_id: userId,
+                    coupon_id: couponId,
+                    reaction_type: CouponReactionType.DISLIKE,
+                }),
+            );
+            await this.couponRepository.increment({ id: couponId }, 'total_dislikes', 1);
+        }
+
+        const updated = await this.couponRepository.findOne({ where: { id: couponId } });
+
+        return {
+            total_likes: Number(updated?.total_likes ?? 0),
+            total_dislikes: Number(updated?.total_dislikes ?? 0),
+            user_reaction: CouponReactionType.DISLIKE,
+            already_reacted: false,
+        };
+    }
+
+    /**
+     * Get the logged-in user's coupon reactions for a merchant business.
+     */
+    async getUserCouponReactions(
+        userId: number,
+        merchantBusinessId: number,
+    ): Promise<Record<number, CouponReactionType>> {
+        const reactions = await this.userCouponReactionRepository
+            .createQueryBuilder('reaction')
+            .innerJoin('reaction.coupon', 'coupon')
+            .where('reaction.user_id = :userId', { userId })
+            .andWhere('coupon.merchant_business_id = :merchantBusinessId', { merchantBusinessId })
+            .getMany();
+
+        return reactions.reduce<Record<number, CouponReactionType>>((acc, reaction) => {
+            acc[reaction.coupon_id] = reaction.reaction_type;
+            return acc;
+        }, {});
     }
 
     /**

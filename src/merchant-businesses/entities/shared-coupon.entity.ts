@@ -38,6 +38,9 @@ export class SharedCoupon {
     @Column({ type: 'varchar', length: 30, nullable: true })
     recipient_phone: string | null;
 
+    @Column({ type: 'boolean', default: false })
+    used_status: boolean;
+
     @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'shared_by_user_id' })
     shared_by: User;

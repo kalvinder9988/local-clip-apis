@@ -9,6 +9,8 @@ import { Category } from '../categories/entities/category.entity';
 import { MerchantBusiness } from '../merchant-businesses/entities/merchant-business.entity';
 import { DealsController } from './deals/deals.controller';
 import { DealsService } from './deals/deals.service';
+import { User } from '../users/entities/user.entity';
+import { WebAccountService } from './users/web-account.service';
 import { WebUsersController } from './users/web-users.controller';
 import { UsersModule } from '../users/users.module';
 import { UserLike } from '../merchant-businesses/entities/user-like.entity';
@@ -18,11 +20,12 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { Review } from '../merchant-businesses/entities/review.entity';
 import { StaticPage } from '../contents/entities/static-page.entity';
 import { ContactInquiry } from './home/entities/contact-inquiry.entity';
+import { UserCouponReaction } from '../merchant-businesses/entities/user-coupon-reaction.entity';
 import { MerchantQuestion } from '../merchant-businesses/entities/merchant-question.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Banner, Category, MerchantBusiness, UserLike, UserCouponHistory, SharedCoupon, Coupon, Review, StaticPage, ContactInquiry, MerchantQuestion]),
+        TypeOrmModule.forFeature([Banner, Category, MerchantBusiness, UserLike, UserCouponHistory, SharedCoupon, UserCouponReaction, Coupon, Review, StaticPage, ContactInquiry, MerchantQuestion, User]),
         UsersModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
@@ -34,6 +37,6 @@ import { MerchantQuestion } from '../merchant-businesses/entities/merchant-quest
         }),
     ],
     controllers: [HomeController, DealsController, WebUsersController],
-    providers: [HomeService, DealsService],
+    providers: [HomeService, DealsService, WebAccountService],
 })
 export class WebApisModule { }

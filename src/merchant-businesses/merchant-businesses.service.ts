@@ -13,6 +13,7 @@ import { Category } from '../categories/entities/category.entity';
 import { Zipcode } from '../zipcodes/entities/zipcode.entity';
 import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
 import { generateUniqueSlug } from '../common/utils/slug.utils';
+import { normalizePagination } from '../common/utils/pagination.util';
 
 @Injectable()
 export class MerchantBusinessesService {
@@ -215,12 +216,23 @@ export class MerchantBusinessesService {
   /**
    * Get all merchant businesses
    */
-  async findAll() {
-    return this.merchantBusinessRepository.find({
+  async findAll(page: number = 1, limit: number = 10) {
+    const { page: normalizedPage, limit: normalizedLimit, skip } = normalizePagination(page, limit);
+
+    const [data, total] = await this.merchantBusinessRepository.findAndCount({
       where: { deleted: false },
       relations: ['zipcode', 'zipcode_group', 'category', 'merchant', 'merchant_convenience', 'assets'],
       order: { created_at: 'DESC' },
+      skip,
+      take: normalizedLimit,
     });
+
+    return {
+      data,
+      total,
+      page: normalizedPage,
+      limit: normalizedLimit,
+    };
   }
 
   /**

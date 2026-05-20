@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Req, UseGuards, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Req, UseGuards, Body, Query } from '@nestjs/common';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { DealsService } from './deals.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -47,6 +47,19 @@ export class DealsController {
     constructor(private readonly dealsService: DealsService) { }
 
     /**
+     * GET /web/deals/coupon-reactions?merchant_business_id= — requires user JWT
+     */
+    @UseGuards(JwtAuthGuard)
+    @Get('coupon-reactions')
+    getCouponReactions(
+        @Query('merchant_business_id') merchantBusinessId: string,
+        @Req() req: any,
+    ) {
+        const userId: number = req.user.userId;
+        return this.dealsService.getUserCouponReactions(userId, Number(merchantBusinessId));
+    }
+
+    /**
      * GET /web/deals/:idOrSlug — public
      */
     @Public()
@@ -91,6 +104,28 @@ export class DealsController {
             body.recipient_name,
             body.recipient_phone,
         );
+    }
+
+    /**
+     * POST /web/deals/coupon-like — requires user JWT
+     * Body: { coupon_id: number }
+     */
+    @UseGuards(JwtAuthGuard)
+    @Post('coupon-like')
+    likeCoupon(@Body('coupon_id') couponId: number, @Req() req: any) {
+        const userId: number = req.user.userId;
+        return this.dealsService.likeCoupon(userId, Number(couponId));
+    }
+
+    /**
+     * POST /web/deals/coupon-dislike — requires user JWT
+     * Body: { coupon_id: number }
+     */
+    @UseGuards(JwtAuthGuard)
+    @Post('coupon-dislike')
+    dislikeCoupon(@Body('coupon_id') couponId: number, @Req() req: any) {
+        const userId: number = req.user.userId;
+        return this.dealsService.dislikeCoupon(userId, Number(couponId));
     }
 
     /**

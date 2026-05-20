@@ -64,6 +64,9 @@ export class Coupon {
     @Column({ type: 'int', default: 0 })
     total_shared: number;
 
+    @Column({ type: 'int', default: 0 })
+    max_usage: number;
+
     @Column({ type: 'date' })
     valid_from: Date;
 

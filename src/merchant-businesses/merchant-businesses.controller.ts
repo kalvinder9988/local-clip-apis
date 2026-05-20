@@ -245,11 +245,18 @@ export class MerchantBusinessesController {
   @Get()
   @ApiOperation({ summary: 'Get all merchant businesses' })
   @ApiResponse({ status: 200, description: 'List of merchant businesses' })
-  findAll(@Query('merchant_id') merchantId?: string) {
+  findAll(
+    @Query('merchant_id') merchantId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     if (merchantId) {
       return this.merchantBusinessesService.findByMerchantUserId(+merchantId);
     }
-    return this.merchantBusinessesService.findAll();
+    return this.merchantBusinessesService.findAll(
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
   }
 
   @Get(':id')

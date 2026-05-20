@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Body, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Body, Delete, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ContactInquiriesService } from './contact-inquiries.service';
 import { ContactInquiryStatus } from '../web-apis/home/entities/contact-inquiry.entity';
@@ -11,8 +11,14 @@ export class ContactInquiriesController {
 
     @Get()
     @ApiOperation({ summary: 'Get all contact inquiries' })
-    findAll() {
-        return this.service.findAll();
+    findAll(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.service.findAll(
+            page ? +page : 1,
+            limit ? +limit : 10,
+        );
     }
 
     @Get(':id')

@@ -6,6 +6,7 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { MerchantBusiness } from '../merchant-businesses/entities/merchant-business.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { Category } from '../categories/entities/category.entity';
+import { UserLike } from '../merchant-businesses/entities/user-like.entity';
 import {
     DashboardStatsDto,
     UserStatsDto,
@@ -14,6 +15,8 @@ import {
     RecentActivityDto,
     GrowthStatsDto,
     MerchantDashboardStatsDto,
+    MerchantBusinessLikeDto,
+    PaginatedResponseDto,
 } from './dto/dashboard-stats.dto';
 
 @Injectable()
@@ -29,6 +32,8 @@ export class DashboardService {
         private readonly planRepository: Repository<Plan>,
         @InjectRepository(Category)
         private readonly categoryRepository: Repository<Category>,
+        @InjectRepository(UserLike)
+        private readonly userLikeRepository: Repository<UserLike>,
     ) { }
 
     /**
@@ -322,9 +327,53 @@ export class DashboardService {
             businessStatus: business.status,
             totalCoupons: parseInt(couponAgg?.totalCoupons ?? '0', 10),
             activeCoupons: parseInt(couponAgg?.activeCoupons ?? '0', 10),
-            totalLikes: parseInt(couponAgg?.totalLikes ?? '0', 10),
+            totalLikes: Number(business.total_likes ?? 0),
             totalDislikes: parseInt(couponAgg?.totalDislikes ?? '0', 10),
             totalShares: parseInt(couponAgg?.totalShares ?? '0', 10),
+        };
+    }
+
+    /**
+     * Get users who liked the merchant's business listing.
+     */
+    async getMerchantBusinessLikes(
+        merchantUserId: number,
+        page: number = 1,
+        limit: number = 10,
+    ): Promise<PaginatedResponseDto<MerchantBusinessLikeDto>> {
+        const normalizedPage = Math.max(1, Number(page) || 1);
+        const normalizedLimit = Math.min(100, Math.max(1, Number(limit) || 10));
+        const skip = (normalizedPage - 1) * normalizedLimit;
+
+        const business = await this.merchantRepository.findOne({
+            where: { merchant: { id: merchantUserId }, deleted: false } as any,
+            order: { created_at: 'DESC' },
+        });
+
+        if (!business) {
+            return { data: [], total: 0, page: normalizedPage, limit: normalizedLimit };
+        }
+
+        const [likes, total] = await this.userLikeRepository.findAndCount({
+            where: { merchant_business_id: business.id },
+            relations: ['user'],
+            order: { created_at: 'DESC' },
+            skip,
+            take: normalizedLimit,
+        });
+
+        return {
+            data: likes.map((like) => ({
+                id: like.id,
+                user_id: like.user_id,
+                user_name: like.user?.name ?? 'Unknown',
+                user_email: like.user?.email ?? '',
+                user_phone: like.user?.phone ?? '',
+                liked_at: like.created_at,
+            })),
+            total,
+            page: normalizedPage,
+            limit: normalizedLimit,
         };
     }
 

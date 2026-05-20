@@ -97,6 +97,9 @@ export class CouponsController {
     if (transformed.total_shared !== undefined) {
       transformed.total_shared = parseInt(transformed.total_shared, 10);
     }
+    if (transformed.max_usage !== undefined) {
+      transformed.max_usage = parseInt(transformed.max_usage, 10);
+    }
 
     return transformed;
   }
@@ -122,16 +125,91 @@ export class CouponsController {
   }
 
   @Get()
-  findAll(@Query('merchant_business_id') merchantBusinessId?: string) {
-    if (merchantBusinessId) {
-      return this.couponsService.findByMerchantBusiness(+merchantBusinessId);
-    }
-    return this.couponsService.findAll();
+  findAll(
+    @Query('merchant_business_id') merchantBusinessId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.couponsService.findAll(
+      merchantBusinessId ? +merchantBusinessId : undefined,
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
+  }
+
+  @Get('engagement/likes')
+  getAllLikes(
+    @Query('coupon_id') couponId?: string,
+    @Query('merchant_business_id') merchantBusinessId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.couponsService.getAllLikes(
+      couponId ? +couponId : undefined,
+      merchantBusinessId ? +merchantBusinessId : undefined,
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
+  }
+
+  @Get('engagement/dislikes')
+  getAllDislikes(
+    @Query('coupon_id') couponId?: string,
+    @Query('merchant_business_id') merchantBusinessId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.couponsService.getAllDislikes(
+      couponId ? +couponId : undefined,
+      merchantBusinessId ? +merchantBusinessId : undefined,
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
+  }
+
+  @Get('engagement/shares')
+  getAllShares(
+    @Query('coupon_id') couponId?: string,
+    @Query('merchant_business_id') merchantBusinessId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.couponsService.getAllShares(
+      couponId ? +couponId : undefined,
+      merchantBusinessId ? +merchantBusinessId : undefined,
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
+  }
+
+  @Patch('shares/:shareId/used-status')
+  @HttpCode(HttpStatus.OK)
+  updateShareUsedStatus(
+    @Param('shareId') shareId: string,
+    @Body('used_status') usedStatus: boolean | string,
+  ) {
+    const normalized = usedStatus === true || usedStatus === 'true';
+    return this.couponsService.updateShareUsedStatus(+shareId, normalized);
   }
 
   @Get('code/:code')
   findByCouponCode(@Param('code') code: string) {
     return this.couponsService.findByCouponCode(code);
+  }
+
+  @Get(':id/likes')
+  getCouponLikes(@Param('id') id: string) {
+    return this.couponsService.getCouponLikes(+id);
+  }
+
+  @Get(':id/dislikes')
+  getCouponDislikes(@Param('id') id: string) {
+    return this.couponsService.getCouponDislikes(+id);
+  }
+
+  @Get(':id/shares')
+  getCouponShares(@Param('id') id: string) {
+    return this.couponsService.getCouponShares(+id);
   }
 
   @Get(':id')

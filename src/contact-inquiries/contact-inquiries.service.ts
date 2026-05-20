@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ContactInquiry, ContactInquiryStatus } from '../web-apis/home/entities/contact-inquiry.entity';
+import { normalizePagination } from '../common/utils/pagination.util';
 
 @Injectable()
 export class ContactInquiriesService {
@@ -10,11 +11,30 @@ export class ContactInquiriesService {
         private readonly repo: Repository<ContactInquiry>,
     ) { }
 
-    async findAll(): Promise<{ data: ContactInquiry[]; total: number }> {
+    async findAll(page: number = 1, limit: number = 10) {
+        const { page: normalizedPage, limit: normalizedLimit, skip } = normalizePagination(page, limit);
+
         const [data, total] = await this.repo.findAndCount({
             order: { created_at: 'DESC' },
+            skip,
+            take: normalizedLimit,
         });
-        return { data, total };
+
+        const [pendingCount, resolvedCount, rejectedCount] = await Promise.all([
+            this.repo.count({ where: { status: ContactInquiryStatus.PENDING } }),
+            this.repo.count({ where: { status: ContactInquiryStatus.RESOLVED } }),
+            this.repo.count({ where: { status: ContactInquiryStatus.REJECTED } }),
+        ]);
+
+        return {
+            data,
+            total,
+            page: normalizedPage,
+            limit: normalizedLimit,
+            pending_count: pendingCount,
+            resolved_count: resolvedCount,
+            rejected_count: rejectedCount,
+        };
     }
 
     async findOne(id: number): Promise<ContactInquiry> {
