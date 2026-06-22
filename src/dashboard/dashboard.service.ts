@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, Between } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { MerchantBusiness } from '../merchant-businesses/entities/merchant-business.entity';
 import { Plan } from '../plans/entities/plan.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserLike } from '../merchant-businesses/entities/user-like.entity';
+import { SharedCoupon } from '../merchant-businesses/entities/shared-coupon.entity';
 import {
     DashboardStatsDto,
     UserStatsDto,
@@ -14,6 +15,9 @@ import {
     CouponStatsDto,
     RecentActivityDto,
     GrowthStatsDto,
+    MerchantMonthlyGrowthDto,
+    MerchantCouponCountDto,
+    MerchantCouponRedeemedDto,
     MerchantDashboardStatsDto,
     MerchantBusinessLikeDto,
     PaginatedResponseDto,
@@ -34,7 +38,29 @@ export class DashboardService {
         private readonly categoryRepository: Repository<Category>,
         @InjectRepository(UserLike)
         private readonly userLikeRepository: Repository<UserLike>,
+        @InjectRepository(SharedCoupon)
+        private readonly sharedCouponRepository: Repository<SharedCoupon>,
     ) { }
+
+    private getTodayStart(): Date {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today;
+    }
+
+    private async countActiveCoupons(merchantBusinessId?: number): Promise<number> {
+        const today = this.getTodayStart();
+        const qb = this.couponRepository
+            .createQueryBuilder('coupon')
+            .where('coupon.status = :status', { status: true })
+            .andWhere('coupon.valid_to >= :today', { today });
+
+        if (merchantBusinessId) {
+            qb.andWhere('coupon.merchant_business_id = :merchantBusinessId', { merchantBusinessId });
+        }
+
+        return qb.getCount();
+    }
 
     /**
      * Get overall dashboard statistics
@@ -51,7 +77,7 @@ export class DashboardService {
             this.userRepository.count(),
             this.merchantRepository.count(),
             this.couponRepository.count(),
-            this.couponRepository.count({ where: { status: true } }),
+            this.countActiveCoupons(),
             this.categoryRepository.count(),
             this.planRepository.count(),
         ]);
@@ -142,8 +168,7 @@ export class DashboardService {
      * Get coupon statistics
      */
     async getCouponStats(): Promise<CouponStatsDto> {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const today = this.getTodayStart();
         const weekAgo = new Date(today);
         weekAgo.setDate(weekAgo.getDate() - 7);
         const monthAgo = new Date(today);
@@ -161,10 +186,10 @@ export class DashboardService {
             topCouponsByShares,
         ] = await Promise.all([
             this.couponRepository.count(),
-            this.couponRepository.count({ where: { status: true } }),
+            this.countActiveCoupons(),
             this.couponRepository
                 .createQueryBuilder('coupon')
-                .where('coupon.valid_to < :now', { now: today })
+                .where('coupon.valid_to < :today', { today })
                 .getCount(),
             this.couponRepository.count({ where: { created_at: MoreThan(today) } }),
             this.couponRepository.count({ where: { created_at: MoreThan(weekAgo) } }),
@@ -292,6 +317,67 @@ export class DashboardService {
     }
 
     /**
+     * Get merchant additions per month for the last 6 months
+     */
+    async getMerchantMonthlyGrowth(): Promise<MerchantMonthlyGrowthDto[]> {
+        const stats: MerchantMonthlyGrowthDto[] = [];
+        const now = new Date();
+
+        for (let i = 5; i >= 0; i--) {
+            const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthEnd = new Date(
+                monthStart.getFullYear(),
+                monthStart.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+                999,
+            );
+
+            const count = await this.merchantRepository.count({
+                where: {
+                    created_at: Between(monthStart, monthEnd),
+                    deleted: false,
+                },
+            });
+
+            stats.push({
+                month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
+                label: monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+                count,
+            });
+        }
+
+        return stats;
+    }
+
+    /**
+     * Get coupon count grouped by merchant (top 10 by coupon count)
+     */
+    async getMerchantCouponCounts(): Promise<MerchantCouponCountDto[]> {
+        const result = await this.merchantRepository
+            .createQueryBuilder('merchant')
+            .leftJoin('merchant.coupons', 'coupon')
+            .select('merchant.id', 'merchantId')
+            .addSelect('merchant.business_name', 'merchantName')
+            .addSelect('COUNT(coupon.id)', 'couponCount')
+            .where('merchant.deleted = :deleted', { deleted: false })
+            .groupBy('merchant.id')
+            .addGroupBy('merchant.business_name')
+            .orderBy('couponCount', 'DESC')
+            .addOrderBy('merchant.business_name', 'ASC')
+            .limit(10)
+            .getRawMany();
+
+        return result.map((row) => ({
+            merchantId: parseInt(row.merchantId, 10),
+            merchantName: row.merchantName,
+            couponCount: parseInt(row.couponCount, 10),
+        }));
+    }
+
+    /**
      * Get dashboard statistics for a specific merchant (by their AdminUser ID)
      */
     async getMerchantDashboardStats(merchantUserId: number): Promise<MerchantDashboardStatsDto> {
@@ -308,18 +394,27 @@ export class DashboardService {
                 activeCoupons: 0,
                 totalLikes: 0,
                 totalDislikes: 0,
-                totalShares: 0,
+                expiredCoupons: 0,
             };
         }
+
+        const today = this.getTodayStart();
 
         const couponAgg = await this.couponRepository
             .createQueryBuilder('coupon')
             .select('COUNT(coupon.id)', 'totalCoupons')
-            .addSelect('SUM(CASE WHEN coupon.status = 1 THEN 1 ELSE 0 END)', 'activeCoupons')
+            .addSelect(
+                'SUM(CASE WHEN coupon.status = 1 AND coupon.valid_to >= :today THEN 1 ELSE 0 END)',
+                'activeCoupons',
+            )
+            .addSelect(
+                'SUM(CASE WHEN coupon.valid_to < :today THEN 1 ELSE 0 END)',
+                'expiredCoupons',
+            )
             .addSelect('SUM(coupon.total_likes)', 'totalLikes')
             .addSelect('SUM(coupon.total_dislikes)', 'totalDislikes')
-            .addSelect('SUM(coupon.total_shared)', 'totalShares')
             .where('coupon.merchant_business_id = :businessId', { businessId: business.id })
+            .setParameter('today', today)
             .getRawOne();
 
         return {
@@ -329,8 +424,50 @@ export class DashboardService {
             activeCoupons: parseInt(couponAgg?.activeCoupons ?? '0', 10),
             totalLikes: Number(business.total_likes ?? 0),
             totalDislikes: parseInt(couponAgg?.totalDislikes ?? '0', 10),
-            totalShares: parseInt(couponAgg?.totalShares ?? '0', 10),
+            expiredCoupons: parseInt(couponAgg?.expiredCoupons ?? '0', 10),
         };
+    }
+
+    /**
+     * Get redeemed coupon counts for the logged-in merchant (top 10 coupons)
+     */
+    async getMerchantCouponRedeemedStats(merchantUserId: number): Promise<MerchantCouponRedeemedDto[]> {
+        const business = await this.merchantRepository.findOne({
+            where: { merchant: { id: merchantUserId }, deleted: false } as any,
+            order: { created_at: 'DESC' },
+        });
+
+        if (!business) {
+            return [];
+        }
+
+        const result = await this.couponRepository
+            .createQueryBuilder('coupon')
+            .leftJoin(
+                SharedCoupon,
+                'share',
+                'share.coupon_id = coupon.id AND share.used_status = :used',
+                { used: true },
+            )
+            .select('coupon.id', 'couponId')
+            .addSelect('coupon.coupon_name', 'couponName')
+            .addSelect('coupon.coupon_code', 'couponCode')
+            .addSelect('COUNT(share.id)', 'redeemedCount')
+            .where('coupon.merchant_business_id = :businessId', { businessId: business.id })
+            .groupBy('coupon.id')
+            .addGroupBy('coupon.coupon_name')
+            .addGroupBy('coupon.coupon_code')
+            .orderBy('redeemedCount', 'DESC')
+            .addOrderBy('coupon.coupon_name', 'ASC')
+            .limit(10)
+            .getRawMany();
+
+        return result.map((row) => ({
+            couponId: parseInt(row.couponId, 10),
+            couponName: row.couponName,
+            couponCode: row.couponCode,
+            redeemedCount: parseInt(row.redeemedCount, 10),
+        }));
     }
 
     /**

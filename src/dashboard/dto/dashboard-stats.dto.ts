@@ -73,6 +73,25 @@ export class GrowthStatsDto {
     coupons: number;
 }
 
+export class MerchantMonthlyGrowthDto {
+    month: string;
+    label: string;
+    count: number;
+}
+
+export class MerchantCouponCountDto {
+    merchantId: number;
+    merchantName: string;
+    couponCount: number;
+}
+
+export class MerchantCouponRedeemedDto {
+    couponId: number;
+    couponName: string;
+    couponCode: string;
+    redeemedCount: number;
+}
+
 export class MerchantDashboardStatsDto {
     businessName: string;
     businessStatus: boolean;
@@ -80,7 +99,7 @@ export class MerchantDashboardStatsDto {
     activeCoupons: number;
     totalLikes: number;
     totalDislikes: number;
-    totalShares: number;
+    expiredCoupons: number;
 }
 
 export class MerchantBusinessLikeDto {

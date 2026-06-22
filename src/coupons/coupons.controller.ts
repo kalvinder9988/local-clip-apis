@@ -129,11 +129,15 @@ export class CouponsController {
     @Query('merchant_business_id') merchantBusinessId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('date_from') dateFrom?: string,
+    @Query('date_to') dateTo?: string,
   ) {
     return this.couponsService.findAll(
       merchantBusinessId ? +merchantBusinessId : undefined,
       page ? +page : 1,
       limit ? +limit : 10,
+      dateFrom,
+      dateTo,
     );
   }
 

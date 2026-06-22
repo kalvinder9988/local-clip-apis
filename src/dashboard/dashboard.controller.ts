@@ -63,6 +63,24 @@ export class DashboardController {
     }
 
     /**
+     * GET /dashboard/merchant-monthly-growth
+     * Get merchant additions per month for the last 6 months
+     */
+    @Get('merchant-monthly-growth')
+    getMerchantMonthlyGrowth() {
+        return this.dashboardService.getMerchantMonthlyGrowth();
+    }
+
+    /**
+     * GET /dashboard/merchant-coupon-counts
+     * Get coupon count grouped by merchant
+     */
+    @Get('merchant-coupon-counts')
+    getMerchantCouponCounts() {
+        return this.dashboardService.getMerchantCouponCounts();
+    }
+
+    /**
      * GET /dashboard/merchant-stats
      * Get dashboard statistics for the logged-in merchant
      */
@@ -88,5 +106,15 @@ export class DashboardController {
             page ? +page : 1,
             limit ? +limit : 10,
         );
+    }
+
+    /**
+     * GET /dashboard/merchant-coupon-redeemed
+     * Get redeemed counts grouped by coupon for the logged-in merchant
+     */
+    @Get('merchant-coupon-redeemed')
+    getMerchantCouponRedeemedStats(@Req() req: Request) {
+        const user = req['user'] as { userId: number; email: string; role: string };
+        return this.dashboardService.getMerchantCouponRedeemedStats(user.userId);
     }
 }

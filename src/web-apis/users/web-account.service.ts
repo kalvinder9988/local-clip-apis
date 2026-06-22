@@ -153,7 +153,7 @@ export class WebAccountService {
                 merchant_business_id: like.merchant_business_id,
                 business_name: like.merchant_business?.business_name ?? '',
                 slug: like.merchant_business?.slug ?? '',
-                banner_image_url: like.merchant_business?.banner_image ?? '',
+                banner_image_url: like.merchant_business?.banner_image_url ?? '',
                 category_name: like.merchant_business?.category?.name ?? '',
                 liked_at: like.created_at,
             })),

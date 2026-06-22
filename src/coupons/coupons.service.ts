@@ -50,7 +50,51 @@ export class CouponsService {
     return savedCoupon as unknown as Coupon;
   }
 
-  async findAll(merchantBusinessId?: number, page: number = 1, limit: number = 10) {
+  private async attachRedeemedCounts<T extends { id: number }>(coupons: T[]) {
+    if (coupons.length === 0) {
+      return coupons.map((coupon) => ({ ...coupon, total_redeemed: 0 }));
+    }
+
+    const couponIds = coupons.map((coupon) => coupon.id);
+    const rows = await this.sharedCouponRepository
+      .createQueryBuilder('share')
+      .select('share.coupon_id', 'coupon_id')
+      .addSelect('COUNT(share.id)', 'total_redeemed')
+      .where('share.coupon_id IN (:...couponIds)', { couponIds })
+      .andWhere('share.used_status = :used', { used: true })
+      .groupBy('share.coupon_id')
+      .getRawMany();
+
+    const redeemedMap = new Map(
+      rows.map((row) => [Number(row.coupon_id), Number(row.total_redeemed)]),
+    );
+
+    return coupons.map((coupon) => ({
+      ...coupon,
+      total_redeemed: redeemedMap.get(coupon.id) ?? 0,
+    }));
+  }
+
+  private applyValidityDateRangeFilter(
+    qb: ReturnType<Repository<Coupon>['createQueryBuilder']>,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
+    if (dateFrom) {
+      qb.andWhere('coupon.valid_to >= :dateFrom', { dateFrom });
+    }
+    if (dateTo) {
+      qb.andWhere('coupon.valid_from <= :dateTo', { dateTo });
+    }
+  }
+
+  async findAll(
+    merchantBusinessId?: number,
+    page: number = 1,
+    limit: number = 10,
+    dateFrom?: string,
+    dateTo?: string,
+  ) {
     const { page: normalizedPage, limit: normalizedLimit, skip } = normalizePagination(page, limit);
 
     const qb = this.couponRepository
@@ -62,28 +106,38 @@ export class CouponsService {
       qb.andWhere('coupon.merchant_business_id = :merchantBusinessId', { merchantBusinessId });
     }
 
+    this.applyValidityDateRangeFilter(qb, dateFrom, dateTo);
+
     const [data, total] = await qb.skip(skip).take(normalizedLimit).getManyAndCount();
 
     const countQb = this.couponRepository.createQueryBuilder('coupon');
     if (merchantBusinessId) {
       countQb.andWhere('coupon.merchant_business_id = :merchantBusinessId', { merchantBusinessId });
     }
+    this.applyValidityDateRangeFilter(countQb, dateFrom, dateTo);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const activeCount = await countQb
       .clone()
       .andWhere('coupon.status = :status', { status: true })
+      .andWhere('coupon.valid_to >= :today', { today })
       .getCount();
     const inactiveCount = await countQb
       .clone()
       .andWhere('coupon.status = :status', { status: false })
+      .andWhere('coupon.valid_to >= :today', { today })
       .getCount();
     const expiredCount = await countQb
       .clone()
-      .andWhere('coupon.valid_to < :now', { now: new Date() })
+      .andWhere('coupon.valid_to < :today', { today })
       .getCount();
 
+    const dataWithRedeemed = await this.attachRedeemedCounts(data);
+
     return {
-      data,
+      data: dataWithRedeemed,
       total,
       page: normalizedPage,
       limit: normalizedLimit,
@@ -110,8 +164,10 @@ export class CouponsService {
     merchantBusinessId: number,
     page: number = 1,
     limit: number = 10,
+    dateFrom?: string,
+    dateTo?: string,
   ) {
-    return this.findAll(merchantBusinessId, page, limit);
+    return this.findAll(merchantBusinessId, page, limit, dateFrom, dateTo);
   }
 
   async findByCouponCode(couponCode: string): Promise<Coupon> {
