@@ -90,7 +90,9 @@ export class AdminUsersController {
     description: 'User is not authenticated',
   })
   async verify(@Req() request: Request): Promise<{ user: LoginResponseDto['user'] }> {
-    const token = request.cookies?.access_token;
+    const token =
+      request.cookies?.access_token ||
+      request.headers.authorization?.replace(/^Bearer\s+/i, '');
 
     if (!token) {
       throw new UnauthorizedException('Not authenticated');
