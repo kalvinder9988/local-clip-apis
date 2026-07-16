@@ -9,6 +9,8 @@ import { Plan } from '../plans/entities/plan.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserLike } from '../merchant-businesses/entities/user-like.entity';
 import { SharedCoupon } from '../merchant-businesses/entities/shared-coupon.entity';
+import { Review } from '../merchant-businesses/entities/review.entity';
+import { MerchantQuestion } from '../merchant-businesses/entities/merchant-question.entity';
 
 @Module({
     imports: [
@@ -20,6 +22,8 @@ import { SharedCoupon } from '../merchant-businesses/entities/shared-coupon.enti
             Category,
             UserLike,
             SharedCoupon,
+            Review,
+            MerchantQuestion,
         ]),
     ],
     controllers: [DashboardController],

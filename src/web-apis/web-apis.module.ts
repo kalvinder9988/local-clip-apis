@@ -22,11 +22,13 @@ import { StaticPage } from '../contents/entities/static-page.entity';
 import { ContactInquiry } from './home/entities/contact-inquiry.entity';
 import { UserCouponReaction } from '../merchant-businesses/entities/user-coupon-reaction.entity';
 import { MerchantQuestion } from '../merchant-businesses/entities/merchant-question.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Banner, Category, MerchantBusiness, UserLike, UserCouponHistory, SharedCoupon, UserCouponReaction, Coupon, Review, StaticPage, ContactInquiry, MerchantQuestion, User]),
         UsersModule,
+        MailModule,
         JwtModule.registerAsync({
             imports: [ConfigModule],
             inject: [ConfigService],

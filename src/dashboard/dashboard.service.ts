@@ -8,6 +8,8 @@ import { Plan } from '../plans/entities/plan.entity';
 import { Category } from '../categories/entities/category.entity';
 import { UserLike } from '../merchant-businesses/entities/user-like.entity';
 import { SharedCoupon } from '../merchant-businesses/entities/shared-coupon.entity';
+import { Review } from '../merchant-businesses/entities/review.entity';
+import { MerchantQuestion, QuestionStatus } from '../merchant-businesses/entities/merchant-question.entity';
 import {
     DashboardStatsDto,
     UserStatsDto,
@@ -20,6 +22,7 @@ import {
     MerchantCouponRedeemedDto,
     MerchantDashboardStatsDto,
     MerchantBusinessLikeDto,
+    MerchantOverviewDto,
     PaginatedResponseDto,
 } from './dto/dashboard-stats.dto';
 
@@ -40,6 +43,10 @@ export class DashboardService {
         private readonly userLikeRepository: Repository<UserLike>,
         @InjectRepository(SharedCoupon)
         private readonly sharedCouponRepository: Repository<SharedCoupon>,
+        @InjectRepository(Review)
+        private readonly reviewRepository: Repository<Review>,
+        @InjectRepository(MerchantQuestion)
+        private readonly questionRepository: Repository<MerchantQuestion>,
     ) { }
 
     private getTodayStart(): Date {
@@ -468,6 +475,203 @@ export class DashboardService {
             couponCode: row.couponCode,
             redeemedCount: parseInt(row.redeemedCount, 10),
         }));
+    }
+
+    /**
+     * Full merchant dashboard overview (clippers as visitors, reviews, charts).
+     */
+    async getMerchantOverview(merchantUserId: number): Promise<MerchantOverviewDto> {
+        const empty: MerchantOverviewDto = {
+            businessName: '',
+            visitors: 0,
+            totalRedeemed: 0,
+            totalShares: 0,
+            topClippedCoupons: [],
+            pendingQuestions: 0,
+            answeredQuestions: 0,
+            recentReviews: [],
+            recentClippers: [],
+            visitorsRateToday: Array.from({ length: 24 }, (_, hour) => ({
+                label: `${String(hour).padStart(2, '0')}:00`,
+                count: 0,
+            })),
+            visitorsLast7Days: [],
+            redeemedByCoupon: [],
+        };
+
+        const business = await this.merchantRepository.findOne({
+            where: { merchant: { id: merchantUserId }, deleted: false } as any,
+            order: { created_at: 'DESC' },
+        });
+
+        if (!business) {
+            return empty;
+        }
+
+        const businessId = business.id;
+        const todayStart = this.getTodayStart();
+        const tomorrow = new Date(todayStart);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const sevenDaysAgo = new Date(todayStart);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+        const [
+            visitorsRaw,
+            totalRedeemed,
+            totalShares,
+            topClippedRows,
+            pendingQuestions,
+            answeredQuestions,
+            recentReviews,
+            recentClipperRows,
+            todayHourRows,
+            last7DayRows,
+            redeemedByCoupon,
+        ] = await Promise.all([
+            this.sharedCouponRepository
+                .createQueryBuilder('share')
+                .select('COUNT(DISTINCT share.shared_by_user_id)', 'count')
+                .where('share.merchant_business_id = :businessId', { businessId })
+                .getRawOne(),
+            this.sharedCouponRepository.count({
+                where: { merchant_business_id: businessId, used_status: true },
+            }),
+            this.sharedCouponRepository.count({
+                where: { merchant_business_id: businessId },
+            }),
+            this.couponRepository
+                .createQueryBuilder('coupon')
+                .leftJoin(
+                    SharedCoupon,
+                    'share',
+                    'share.coupon_id = coupon.id AND share.merchant_business_id = :businessId',
+                    { businessId },
+                )
+                .select('coupon.id', 'couponId')
+                .addSelect('coupon.coupon_name', 'couponName')
+                .addSelect('coupon.coupon_code', 'couponCode')
+                .addSelect('COUNT(share.id)', 'clippedCount')
+                .where('coupon.merchant_business_id = :businessId', { businessId })
+                .groupBy('coupon.id')
+                .addGroupBy('coupon.coupon_name')
+                .addGroupBy('coupon.coupon_code')
+                .orderBy('clippedCount', 'DESC')
+                .addOrderBy('coupon.created_at', 'DESC')
+                .limit(4)
+                .getRawMany(),
+            this.questionRepository.count({
+                where: { merchant_business_id: businessId, status: QuestionStatus.PENDING },
+            }),
+            this.questionRepository.count({
+                where: { merchant_business_id: businessId, status: QuestionStatus.ANSWERED },
+            }),
+            this.reviewRepository.find({
+                where: { merchant_business_id: businessId },
+                relations: ['user'],
+                order: { created_at: 'DESC' },
+                take: 8,
+            }),
+            this.sharedCouponRepository
+                .createQueryBuilder('share')
+                .leftJoin('share.shared_by', 'user')
+                .select('share.shared_by_user_id', 'userId')
+                .addSelect('user.name', 'userName')
+                .addSelect('user.email', 'userEmail')
+                .addSelect('user.phone', 'userPhone')
+                .addSelect('MAX(share.created_at)', 'clippedAt')
+                .where('share.merchant_business_id = :businessId', { businessId })
+                .groupBy('share.shared_by_user_id')
+                .addGroupBy('user.name')
+                .addGroupBy('user.email')
+                .addGroupBy('user.phone')
+                .orderBy('clippedAt', 'DESC')
+                .limit(8)
+                .getRawMany(),
+            this.sharedCouponRepository
+                .createQueryBuilder('share')
+                .select('HOUR(share.created_at)', 'hour')
+                .addSelect('COUNT(share.id)', 'count')
+                .where('share.merchant_business_id = :businessId', { businessId })
+                .andWhere('share.created_at >= :todayStart', { todayStart })
+                .andWhere('share.created_at < :tomorrow', { tomorrow })
+                .groupBy('HOUR(share.created_at)')
+                .getRawMany(),
+            this.sharedCouponRepository
+                .createQueryBuilder('share')
+                .select('DATE(share.created_at)', 'day')
+                .addSelect('COUNT(share.id)', 'count')
+                .where('share.merchant_business_id = :businessId', { businessId })
+                .andWhere('share.created_at >= :sevenDaysAgo', { sevenDaysAgo })
+                .groupBy('DATE(share.created_at)')
+                .orderBy('day', 'ASC')
+                .getRawMany(),
+            this.getMerchantCouponRedeemedStats(merchantUserId),
+        ]);
+
+        const hourMap = new Map<number, number>(
+            todayHourRows.map((row) => [Number(row.hour), parseInt(row.count, 10)]),
+        );
+        const visitorsRateToday = Array.from({ length: 24 }, (_, hour) => ({
+            label: `${String(hour).padStart(2, '0')}:00`,
+            count: hourMap.get(hour) ?? 0,
+        }));
+
+        const toLocalDateKey = (value: Date | string): string => {
+            if (value instanceof Date) {
+                const y = value.getFullYear();
+                const m = String(value.getMonth() + 1).padStart(2, '0');
+                const d = String(value.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+            return String(value).slice(0, 10);
+        };
+
+        const dayMap = new Map<string, number>(
+            last7DayRows.map((row) => [toLocalDateKey(row.day), parseInt(row.count, 10)]),
+        );
+        const visitorsLast7Days = Array.from({ length: 7 }, (_, index) => {
+            const date = new Date(sevenDaysAgo);
+            date.setDate(sevenDaysAgo.getDate() + index);
+            const key = toLocalDateKey(date);
+            return {
+                label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                count: dayMap.get(key) ?? 0,
+            };
+        });
+
+        return {
+            businessName: business.business_name,
+            visitors: parseInt(visitorsRaw?.count ?? '0', 10),
+            totalRedeemed,
+            totalShares,
+            topClippedCoupons: topClippedRows.map((row, index) => ({
+                couponId: parseInt(row.couponId, 10),
+                couponName: row.couponName,
+                couponCode: row.couponCode,
+                clippedCount: parseInt(row.clippedCount, 10),
+                rank: index + 1,
+            })),
+            pendingQuestions,
+            answeredQuestions,
+            recentReviews: recentReviews.map((review) => ({
+                id: review.id,
+                userName: review.user?.name ?? 'Anonymous',
+                rating: Number(review.rating),
+                review: review.review,
+                createdAt: review.created_at,
+            })),
+            recentClippers: recentClipperRows.map((row) => ({
+                userId: parseInt(row.userId, 10),
+                userName: row.userName ?? 'Unknown',
+                userEmail: row.userEmail ?? '',
+                userPhone: row.userPhone ?? '',
+                clippedAt: row.clippedAt,
+            })),
+            visitorsRateToday,
+            visitorsLast7Days,
+            redeemedByCoupon,
+        };
     }
 
     /**

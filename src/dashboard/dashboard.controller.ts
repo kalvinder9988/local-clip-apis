@@ -117,4 +117,14 @@ export class DashboardController {
         const user = req['user'] as { userId: number; email: string; role: string };
         return this.dashboardService.getMerchantCouponRedeemedStats(user.userId);
     }
+
+    /**
+     * GET /dashboard/merchant-overview
+     * Full merchant dashboard overview (clippers as visitors)
+     */
+    @Get('merchant-overview')
+    getMerchantOverview(@Req() req: Request) {
+        const user = req['user'] as { userId: number; email: string; role: string };
+        return this.dashboardService.getMerchantOverview(user.userId);
+    }
 }

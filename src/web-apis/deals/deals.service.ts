@@ -9,6 +9,7 @@ import { UserCouponReaction, CouponReactionType } from '../../merchant-businesse
 import { Coupon } from '../../coupons/entities/coupon.entity';
 import { Review } from '../../merchant-businesses/entities/review.entity';
 import { MerchantQuestion, QuestionStatus } from '../../merchant-businesses/entities/merchant-question.entity';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class DealsService {
@@ -29,6 +30,7 @@ export class DealsService {
         private readonly reviewRepository: Repository<Review>,
         @InjectRepository(MerchantQuestion)
         private readonly questionRepository: Repository<MerchantQuestion>,
+        private readonly mailService: MailService,
     ) { }
 
     /**
@@ -94,9 +96,28 @@ export class DealsService {
     }
 
     /**
-     * Record a coupon copy event for a logged-in user.
+     * Get coupon code for a logged-in user:
+     * - records copy history
+     * - saves a shared_coupons row (recipient_type = me)
+     * - emails the coupon code to the user
      */
-    async recordCouponCopy(userId: number, couponId: number): Promise<UserCouponHistory> {
+    async recordCouponCopy(
+        userId: number,
+        couponId: number,
+        recipientEmail: string,
+        recipientName?: string,
+        recipientPhone?: string,
+        lang: 'en' | 'es' = 'en',
+    ): Promise<{
+        coupon_code: string;
+        coupon_name: string;
+        email_sent: boolean;
+        total_shared: number;
+    }> {
+        if (!recipientEmail?.trim()) {
+            throw new BadRequestException('Email is required to get the coupon code');
+        }
+
         const coupon = await this.couponRepository.findOne({
             where: { id: couponId },
             relations: ['merchant_business'],
@@ -106,18 +127,55 @@ export class DealsService {
             throw new NotFoundException(`Coupon with ID ${couponId} not found`);
         }
 
-        const record = this.couponHistoryRepository.create({
-            user_id: userId,
-            merchant_business_id: coupon.merchant_business_id,
-            coupon_id: coupon.id,
-            coupon_code: coupon.coupon_code,
+        await this.couponHistoryRepository.save(
+            this.couponHistoryRepository.create({
+                user_id: userId,
+                merchant_business_id: coupon.merchant_business_id,
+                coupon_id: coupon.id,
+                coupon_code: coupon.coupon_code,
+            }),
+        );
+
+        await this.sharedCouponRepository.save(
+            this.sharedCouponRepository.create({
+                shared_by_user_id: userId,
+                coupon_id: coupon.id,
+                merchant_business_id: coupon.merchant_business_id,
+                coupon_code: coupon.coupon_code,
+                recipient_type: 'me',
+                recipient_email: recipientEmail.trim(),
+                recipient_name: recipientName?.trim() || null,
+                recipient_phone: recipientPhone?.trim() || null,
+            }),
+        );
+
+        await this.couponRepository.increment({ id: coupon.id }, 'total_shared', 1);
+
+        const emailSent = await this.mailService.sendCouponCodeEmail({
+            to: recipientEmail.trim(),
+            recipientName: recipientName,
+            couponCode: coupon.coupon_code,
+            couponName: coupon.coupon_name,
+            businessName: coupon.merchant_business?.business_name,
+            couponImageUrl: coupon.coupon_image_url,
+            offerType: coupon.type,
+            offerValue: coupon.coupon_value,
+            description: coupon.description,
+            validFrom: coupon.valid_from,
+            validTo: coupon.valid_to,
+            language: lang,
         });
 
-        return this.couponHistoryRepository.save(record);
+        return {
+            coupon_code: coupon.coupon_code,
+            coupon_name: coupon.coupon_name,
+            email_sent: emailSent,
+            total_shared: Number(coupon.total_shared) + 1,
+        };
     }
 
     /**
-     * Share a coupon — saves a record to shared_coupons.
+     * Share a coupon — saves a record to shared_coupons and emails the recipient.
      */
     async shareCoupon(
         userId: number,
@@ -126,7 +184,12 @@ export class DealsService {
         recipientEmail: string,
         recipientName?: string,
         recipientPhone?: string,
-    ): Promise<SharedCoupon & { total_shared: number }> {
+        lang: 'en' | 'es' = 'en',
+    ): Promise<SharedCoupon & { total_shared: number; email_sent: boolean }> {
+        if (!recipientEmail?.trim()) {
+            throw new BadRequestException('Recipient email is required');
+        }
+
         const coupon = await this.couponRepository.findOne({
             where: { id: couponId },
             relations: ['merchant_business'],
@@ -142,17 +205,33 @@ export class DealsService {
                 merchant_business_id: coupon.merchant_business_id,
                 coupon_code: coupon.coupon_code,
                 recipient_type: recipientType,
-                recipient_email: recipientEmail,
-                recipient_name: recipientName || null,
-                recipient_phone: recipientPhone || null,
+                recipient_email: recipientEmail.trim(),
+                recipient_name: recipientName?.trim() || null,
+                recipient_phone: recipientPhone?.trim() || null,
             }),
         );
 
         await this.couponRepository.increment({ id: coupon.id }, 'total_shared', 1);
 
+        const emailSent = await this.mailService.sendCouponCodeEmail({
+            to: recipientEmail.trim(),
+            recipientName: recipientName,
+            couponCode: coupon.coupon_code,
+            couponName: coupon.coupon_name,
+            businessName: coupon.merchant_business?.business_name,
+            couponImageUrl: coupon.coupon_image_url,
+            offerType: coupon.type,
+            offerValue: coupon.coupon_value,
+            description: coupon.description,
+            validFrom: coupon.valid_from,
+            validTo: coupon.valid_to,
+            language: lang,
+        });
+
         return {
             ...record,
             total_shared: Number(coupon.total_shared) + 1,
+            email_sent: emailSent,
         };
     }
 

@@ -111,6 +111,50 @@ export class MerchantBusinessLikeDto {
     liked_at: Date;
 }
 
+export class MerchantOverviewCouponCardDto {
+    couponId: number;
+    couponName: string;
+    couponCode: string;
+    clippedCount: number;
+    rank: number;
+}
+
+export class MerchantOverviewReviewDto {
+    id: number;
+    userName: string;
+    rating: number;
+    review: string;
+    createdAt: Date;
+}
+
+export class MerchantOverviewClipperDto {
+    userId: number;
+    userName: string;
+    userEmail: string;
+    userPhone: string;
+    clippedAt: Date;
+}
+
+export class MerchantOverviewSeriesPointDto {
+    label: string;
+    count: number;
+}
+
+export class MerchantOverviewDto {
+    businessName: string;
+    visitors: number;
+    totalRedeemed: number;
+    totalShares: number;
+    topClippedCoupons: MerchantOverviewCouponCardDto[];
+    pendingQuestions: number;
+    answeredQuestions: number;
+    recentReviews: MerchantOverviewReviewDto[];
+    recentClippers: MerchantOverviewClipperDto[];
+    visitorsRateToday: MerchantOverviewSeriesPointDto[];
+    visitorsLast7Days: MerchantOverviewSeriesPointDto[];
+    redeemedByCoupon: MerchantCouponRedeemedDto[];
+}
+
 export class PaginatedResponseDto<T> {
     data: T[];
     total: number;

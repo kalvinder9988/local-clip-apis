@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Req, UseGuards, Body, Query } from '@nestjs/common';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEmail, IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { DealsService } from './deals.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -12,7 +13,8 @@ class SubmitQuestionDto {
 }
 
 class ShareCouponDto {
-    @IsNotEmpty()
+    @Type(() => Number)
+    @IsNumber()
     coupon_id: number;
 
     @IsEnum(['me', 'other'])
@@ -28,13 +30,40 @@ class ShareCouponDto {
     @IsOptional()
     @IsString()
     recipient_phone?: string;
+
+    @IsOptional()
+    @IsIn(['en', 'es'])
+    lang?: 'en' | 'es';
+}
+
+class GetCouponCodeDto {
+    @Type(() => Number)
+    @IsNumber()
+    coupon_id: number;
+
+    @IsEmail()
+    recipient_email: string;
+
+    @IsOptional()
+    @IsString()
+    recipient_name?: string;
+
+    @IsOptional()
+    @IsString()
+    recipient_phone?: string;
+
+    @IsOptional()
+    @IsIn(['en', 'es'])
+    lang?: 'en' | 'es';
 }
 
 class SubmitReviewDto {
-    @IsNotEmpty()
+    @Type(() => Number)
+    @IsNumber()
     merchant_business_id: number;
 
-    @IsNotEmpty()
+    @Type(() => Number)
+    @IsNumber()
     rating: number;
 
     @IsNotEmpty()
@@ -80,13 +109,20 @@ export class DealsController {
 
     /**
      * POST /web/deals/coupon-copy — requires user JWT
-     * Body: { coupon_id: number }
+     * Body: { coupon_id, recipient_email, recipient_name?, recipient_phone? }
      */
     @UseGuards(JwtAuthGuard)
     @Post('coupon-copy')
-    recordCouponCopy(@Body('coupon_id') couponId: number, @Req() req: any) {
+    recordCouponCopy(@Body() body: GetCouponCodeDto, @Req() req: any) {
         const userId: number = req.user.userId;
-        return this.dealsService.recordCouponCopy(userId, Number(couponId));
+        return this.dealsService.recordCouponCopy(
+            userId,
+            Number(body.coupon_id),
+            body.recipient_email,
+            body.recipient_name,
+            body.recipient_phone,
+            body.lang || 'en',
+        );
     }
 
     /**
@@ -103,6 +139,7 @@ export class DealsController {
             body.recipient_email,
             body.recipient_name,
             body.recipient_phone,
+            body.lang || 'en',
         );
     }
 

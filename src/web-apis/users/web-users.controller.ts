@@ -20,6 +20,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ChangePasswordDto } from '../../admin-users/dto/change-password.dto';
 import { CouponReactionType } from '../../merchant-businesses/entities/user-coupon-reaction.entity';
+import { MailService } from '../../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 
 class WebRegisterDto {
@@ -45,6 +46,10 @@ class WebRegisterDto {
     @IsString()
     @IsNotEmpty()
     zipcode: string;
+
+    @IsOptional()
+    @IsIn(['en', 'es'])
+    lang?: 'en' | 'es';
 }
 
 class WebLoginDto {
@@ -84,6 +89,7 @@ export class WebUsersController {
         private readonly usersService: UsersService,
         private readonly webAccountService: WebAccountService,
         private readonly jwtService: JwtService,
+        private readonly mailService: MailService,
     ) { }
 
     @Public()
@@ -98,6 +104,14 @@ export class WebUsersController {
             phone: dto.phone,
             zipcode: dto.zipcode,
         });
+
+        // Fire-and-forget welcome email in the selected UI language
+        void this.mailService.sendWelcomeEmail({
+            to: user.email,
+            recipientName: user.name,
+            language: dto.lang || 'en',
+        });
+
         return { message: 'Registration successful', user };
     }
 
