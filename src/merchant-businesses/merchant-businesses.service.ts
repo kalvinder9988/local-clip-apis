@@ -1,7 +1,8 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Not, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { CreateMerchantBusinessDto } from './dto/create-merchant-business.dto';
 import { UpdateMerchantBusinessDto } from './dto/update-merchant-business.dto';
 import { MerchantBusiness } from './entities/merchant-business.entity';
@@ -14,9 +15,12 @@ import { Zipcode } from '../zipcodes/entities/zipcode.entity';
 import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
 import { generateUniqueSlug } from '../common/utils/slug.utils';
 import { normalizePagination } from '../common/utils/pagination.util';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class MerchantBusinessesService {
+  private readonly logger = new Logger(MerchantBusinessesService.name);
+
   constructor(
     @InjectRepository(MerchantBusiness)
     private readonly merchantBusinessRepository: Repository<MerchantBusiness>,
@@ -35,6 +39,7 @@ export class MerchantBusinessesService {
     @InjectRepository(ZipcodeGroup)
     private readonly zipcodeGroupRepository: Repository<ZipcodeGroup>,
     private readonly dataSource: DataSource,
+    private readonly mailService: MailService,
   ) { }
 
   /**
@@ -87,9 +92,8 @@ export class MerchantBusinessesService {
         }
       }
 
-      // Step 2: Create AdminUser as MERCHANT
-      // Generate a random password (merchant will reset on first login or via email)
-      const randomPassword = Math.random().toString(36).slice(-8);
+      // Step 2: Create AdminUser as MERCHANT with numeric password emailed after commit
+      const randomPassword = this.generateNumericPassword(8);
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
       const merchantUser = this.adminUserRepository.create({
@@ -135,6 +139,18 @@ export class MerchantBusinessesService {
 
       // Commit transaction
       await queryRunner.commitTransaction();
+
+      // Fire-and-forget welcome email with login credentials
+      void this.mailService
+        .sendMerchantWelcomeEmail({
+          to: savedMerchantUser.email,
+          recipientName: savedMerchantUser.name,
+          password: randomPassword,
+          businessName: savedBusiness.business_name,
+        })
+        .catch((error) => {
+          this.logger.error(`Failed to send merchant welcome email to ${savedMerchantUser.email}`, error as Error);
+        });
 
       // Return the created business with relations
       return this.findOne(savedBusiness.id);
@@ -393,5 +409,17 @@ export class MerchantBusinessesService {
     };
 
     return generateUniqueSlug(name, null, checkExists);
+  }
+
+  private generateNumericPassword(length = 8): string {
+    const bytes = randomBytes(length);
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += String(bytes[i] % 10);
+    }
+    if (password[0] === '0') {
+      password = `1${password.slice(1)}`;
+    }
+    return password;
   }
 }

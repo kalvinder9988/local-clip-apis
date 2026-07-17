@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    UnauthorizedException,
+    ConflictException,
+    BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { User } from '../../users/entities/user.entity';
 import { SharedCoupon } from '../../merchant-businesses/entities/shared-coupon.entity';
 import {
@@ -10,6 +17,7 @@ import {
 } from '../../merchant-businesses/entities/user-coupon-reaction.entity';
 import { UserLike } from '../../merchant-businesses/entities/user-like.entity';
 import { normalizePagination } from '../../common/utils/pagination.util';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class WebAccountService {
@@ -22,6 +30,7 @@ export class WebAccountService {
         private readonly reactionRepository: Repository<UserCouponReaction>,
         @InjectRepository(UserLike)
         private readonly userLikeRepository: Repository<UserLike>,
+        private readonly mailService: MailService,
     ) { }
 
     async getProfile(userId: number) {
@@ -74,6 +83,61 @@ export class WebAccountService {
         await this.userRepository.save(user);
 
         return { message: 'Password updated successfully' };
+    }
+
+    /**
+     * Generate a temporary password, save it, and email it to the user.
+     * Always returns a generic success message when the email is unknown.
+     */
+    async forgotPassword(email: string, language: 'en' | 'es' = 'en') {
+        const normalizedEmail = email.trim();
+        const user = await this.userRepository.findOne({ where: { email: normalizedEmail } });
+
+        const genericMessage =
+            language === 'es'
+                ? 'Si existe una cuenta con este correo, te enviamos una nueva contraseña.'
+                : 'If an account exists for this email, a new password has been sent.';
+
+        if (!user) {
+            return { message: genericMessage };
+        }
+
+        const temporaryPassword = this.generateTemporaryPassword();
+        const previousPasswordHash = user.password;
+        user.password = await bcrypt.hash(temporaryPassword, 10);
+        await this.userRepository.save(user);
+
+        const sent = await this.mailService.sendForgotPasswordEmail({
+            to: user.email,
+            recipientName: user.name,
+            temporaryPassword,
+            language,
+        });
+
+        if (!sent) {
+            user.password = previousPasswordHash;
+            await this.userRepository.save(user);
+            throw new BadRequestException(
+                language === 'es'
+                    ? 'No se pudo enviar el correo. Inténtalo de nuevo más tarde.'
+                    : 'Unable to send email right now. Please try again later.',
+            );
+        }
+
+        return { message: genericMessage };
+    }
+
+    private generateTemporaryPassword(length = 8): string {
+        const bytes = randomBytes(length);
+        let password = '';
+        for (let i = 0; i < length; i++) {
+            password += String(bytes[i] % 10);
+        }
+        // Avoid leading zeros looking like a truncated code
+        if (password[0] === '0') {
+            password = `1${password.slice(1)}`;
+        }
+        return password;
     }
 
     async getSharedCoupons(userId: number, page = 1, limit = 10) {

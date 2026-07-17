@@ -11,6 +11,7 @@ import { AdminUser } from '../admin-users/entities/admin-user.entity';
 import { Category } from '../categories/entities/category.entity';
 import { Zipcode } from '../zipcodes/entities/zipcode.entity';
 import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ZipcodeGroup } from '../zipcode-groups/entities/zipcode-group.entity';
       Zipcode,
       ZipcodeGroup,
     ]),
+    MailModule,
   ],
   controllers: [MerchantBusinessesController],
   providers: [MerchantBusinessesService],

@@ -8,9 +8,12 @@ import { AdminUsersController } from './admin-users.controller';
 import { AdminUser } from './entities/admin-user.entity';
 import { JwtStrategy } from '../common/strategies/jwt.strategy';
 
+import { MailModule } from '../mail/mail.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([AdminUser]),
+    MailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -1,14 +1,16 @@
-import { Injectable, UnauthorizedException, OnModuleInit, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, OnModuleInit, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { AdminUser, AdminRole } from './entities/admin-user.entity';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class AdminUsersService implements OnModuleInit {
@@ -16,6 +18,7 @@ export class AdminUsersService implements OnModuleInit {
     @InjectRepository(AdminUser)
     private readonly adminUserRepository: Repository<AdminUser>,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) { }
 
   /**
@@ -97,6 +100,55 @@ export class AdminUsersService implements OnModuleInit {
         phone: adminUser.phone,
       },
     };
+  }
+
+  /**
+   * Reset admin/merchant password and email a numeric temporary password.
+   */
+  async forgotPassword(email: string) {
+    const normalizedEmail = email.trim();
+    const genericMessage =
+      'If an account exists for this email, a new password has been sent.';
+
+    const adminUser = await this.adminUserRepository.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    if (!adminUser) {
+      return { message: genericMessage };
+    }
+
+    const temporaryPassword = this.generateNumericPassword(8);
+    const previousPasswordHash = adminUser.password;
+    adminUser.password = await bcrypt.hash(temporaryPassword, 10);
+    await this.adminUserRepository.save(adminUser);
+
+    const sent = await this.mailService.sendForgotPasswordEmail({
+      to: adminUser.email,
+      recipientName: adminUser.name,
+      temporaryPassword,
+      useAdminUrl: true,
+    });
+
+    if (!sent) {
+      adminUser.password = previousPasswordHash;
+      await this.adminUserRepository.save(adminUser);
+      throw new BadRequestException('Unable to send email right now. Please try again later.');
+    }
+
+    return { message: genericMessage };
+  }
+
+  private generateNumericPassword(length = 8): string {
+    const bytes = randomBytes(length);
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += String(bytes[i] % 10);
+    }
+    if (password[0] === '0') {
+      password = `1${password.slice(1)}`;
+    }
+    return password;
   }
 
   /**

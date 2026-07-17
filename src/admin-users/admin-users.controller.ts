@@ -8,6 +8,7 @@ import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordAdminDto } from './dto/forgot-password-admin.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { AdminUser } from './entities/admin-user.entity';
 
@@ -50,6 +51,19 @@ export class AdminUsersController {
 
     // Return user info AND token (for Bearer authorization)
     return { user: result.user, access_token: result.access_token };
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Forgot password',
+    description: 'Generates a numeric temporary password and emails it to the admin/merchant',
+  })
+  @ApiBody({ type: ForgotPasswordAdminDto })
+  @ApiResponse({ status: 200, description: 'Reset email processed' })
+  forgotPassword(@Body() dto: ForgotPasswordAdminDto) {
+    return this.adminUsersService.forgotPassword(dto.email);
   }
 
   @ApiBearerAuth()

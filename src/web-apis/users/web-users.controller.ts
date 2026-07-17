@@ -62,6 +62,16 @@ class WebLoginDto {
     password: string;
 }
 
+class WebForgotPasswordDto {
+    @IsEmail()
+    @IsNotEmpty()
+    email: string;
+
+    @IsOptional()
+    @IsIn(['en', 'es'])
+    lang?: 'en' | 'es';
+}
+
 class WebUpdateProfileDto {
     @IsOptional()
     @IsString()
@@ -136,6 +146,15 @@ export class WebUsersController {
 
         const { password, ...userWithoutPassword } = user;
         return { access_token, user: userWithoutPassword };
+    }
+
+    @Public()
+    @Post('forgot-password')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Reset password and email a temporary password' })
+    @ApiBody({ type: WebForgotPasswordDto })
+    forgotPassword(@Body() dto: WebForgotPasswordDto) {
+        return this.webAccountService.forgotPassword(dto.email, dto.lang || 'en');
     }
 
     @UseGuards(JwtAuthGuard)
